@@ -1,0 +1,5 @@
+# Скрипт с ошибкой: выполнение остановится на третьей команде
+ls
+cd /tmp
+cd a b
+ls this-line-is-never-executed

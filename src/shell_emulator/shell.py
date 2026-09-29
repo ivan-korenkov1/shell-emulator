@@ -27,11 +27,15 @@ def parse_line(line):
 class Shell:
     """Состояние эмулятора и выполнение команд."""
 
-    def __init__(self, out=sys.stdout, err=sys.stderr):
-        """Берет имя пользователя и хоста из реальной ОС."""
+    def __init__(self, config=None, out=sys.stdout, err=sys.stderr):
+        """Берет имя пользователя и хоста из реальной ОС.
+
+        config - словарь параметров (см. config.parse_args).
+        """
         self.user = getpass.getuser()
         self.host = socket.gethostname().split(".")[0]
         self.cwd = "~"
+        self.config = config or {"vfs": None, "script": None}
         self.out = out
         self.err = err
 
@@ -60,11 +64,40 @@ class Shell:
         try:
             output = self.execute(line)
         except CommandError as error:
-            print(error, file=self.err)
+            self.out.flush()
+            print(error, file=self.err, flush=True)
             return False
         if output:
-            print(output, file=self.out)
+            print(output, file=self.out, flush=True)
         return True
+
+    def run_script(self, path):
+        """Выполняет стартовый скрипт, показывая ввод и вывод.
+
+        Пустые строки и строки-комментарии (#) пропускаются.
+        Останавливается при первой ошибке. Возвращает код выхода,
+        если работу нужно завершить, или None, если скрипт выполнен
+        полностью и можно продолжать в интерактивном режиме.
+        """
+        try:
+            with open(path, encoding="utf-8") as file:
+                lines = file.read().splitlines()
+        except OSError as error:
+            print(f"script: {error}", file=self.err, flush=True)
+            return 1
+        for number, line in enumerate(lines, start=1):
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            print(self.prompt() + line, file=self.out, flush=True)
+            try:
+                success = self.run_line(line)
+            except ExitRequest as request:
+                return request.code
+            if not success:
+                print(f"script: stopped at line {number}",
+                      file=self.err, flush=True)
+                return 1
+        return None
 
     def run_interactive(self):
         """Запускает интерактивный цикл REPL. Возвращает код выхода."""
@@ -77,6 +110,8 @@ class Shell:
             except KeyboardInterrupt:
                 print(file=self.out)
                 continue
+            if not sys.stdin.isatty():
+                print(line, file=self.out, flush=True)
             try:
                 self.run_line(line)
             except ExitRequest as request:

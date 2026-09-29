@@ -1,5 +1,7 @@
 """Команды эмулятора и исключения, которые они используют."""
 
+from shell_emulator.config import format_config
+
 MAX_CD_ARGS = 1
 MAX_EXIT_ARGS = 1
 
@@ -49,8 +51,16 @@ def cmd_exit(shell, args):
     raise ExitRequest(code)
 
 
+def cmd_conf_dump(shell, args):
+    """Служебная команда: выводит параметры эмулятора."""
+    if args:
+        raise CommandError("conf-dump: too many arguments")
+    return format_config(shell.config)
+
+
 COMMANDS = {
     "ls": cmd_ls,
     "cd": cmd_cd,
     "exit": cmd_exit,
+    "conf-dump": cmd_conf_dump,
 }
